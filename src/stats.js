@@ -6,12 +6,21 @@ export function updateStats(data) {
         return;
     }
 
-    // Calculate statistics
-    const totalSamples = data.length;
-    const uniqueCounties = new Set(data.filter(d => d.countyName).map(d => d.countyName)).size;
-    const pendingTests = data.filter(d => d.result === 'Pending').length;
-    const positiveTests = data.filter(d => d.result === 'Positive').length;
-    const negativeTests = data.filter(d => d.result === 'Negative').length;
+    // Calculate statistics - only count published records
+    const publishedData = data.filter(d => d.publish === true);
+    const totalSamples = publishedData.length;
+    const uniqueCounties = new Set(publishedData.filter(d => d.countyName).map(d => d.countyName)).size;
+
+    // Helper function to normalize result strings for comparison
+    const normalizeResult = (result) => {
+        if (!result) return '';
+        return result.trim().toLowerCase();
+    };
+
+    const pendingTests = publishedData.filter(d => normalizeResult(d.result) === 'pending').length;
+    const positiveTests = publishedData.filter(d => normalizeResult(d.result) === 'positive').length;
+    const notDetectedTests = publishedData.filter(d => normalizeResult(d.result) === 'not detected').length;
+    const unsuitableTests = publishedData.filter(d => normalizeResult(d.result) === 'sample unsuitable').length;
 
     // Update stat cards
     d3.select('#total-samples')
@@ -50,7 +59,8 @@ export function updateStats(data) {
     // Add additional stats if we have more stat cards
     const additionalStats = [
         { id: 'positive-tests', value: positiveTests },
-        { id: 'negative-tests', value: negativeTests },
+        { id: 'not-detected-tests', value: notDetectedTests },
+        { id: 'unsuitable-tests', value: unsuitableTests },
         { id: 'hunter-samples', value: data.filter(d => d.collectionType === '1').length },
         { id: 'surveillance-samples', value: data.filter(d => d.collectionType === '2').length },
         { id: 'male-samples', value: data.filter(d => d.deerSex === 'M').length },
@@ -79,6 +89,7 @@ export function updateStats(data) {
         uniqueCounties,
         pendingTests,
         positiveTests,
-        negativeTests
+        notDetectedTests,
+        unsuitableTests
     });
 }

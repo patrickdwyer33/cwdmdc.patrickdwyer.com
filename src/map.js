@@ -4,15 +4,19 @@ import { groupByCounty } from './data.js';
 export async function createMap(selector) {
     const container = d3.select(selector);
 
-    // Set up dimensions
-    const width = 800;
-    const height = 600;
+    // Set up responsive dimensions based on container
+    const containerWidth = container.node().getBoundingClientRect().width;
+    const aspectRatio = 4/3; // width:height ratio
+    const width = containerWidth;
+    const height = width / aspectRatio;
 
     const svg = container
         .append('svg')
-        .attr('width', width)
-        .attr('height', height)
-        .style('background', '#f8f9fa');
+        .attr('width', '100%')
+        .attr('viewBox', `0 0 ${width} ${height}`)
+        .attr('preserveAspectRatio', 'xMidYMid meet')
+        .style('background', '#f8f9fa')
+        .style('display', 'block');
 
     // Create tooltip
     const tooltip = d3.select('body')
