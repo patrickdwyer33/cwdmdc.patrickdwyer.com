@@ -1,4 +1,5 @@
 import * as d3 from 'd3';
+import * as topojson from 'topojson-client';
 import { groupByCounty } from './data.js';
 
 export async function createMap(selector) {
@@ -32,48 +33,58 @@ export async function createMap(selector) {
         .style('pointer-events', 'none')
         .style('z-index', '1000');
 
-    // Projection for Missouri
-    const projection = d3.geoAlbersUsa()
-        .scale(4000)
-        .translate([width / 2, height / 2]);
+    // Load Missouri counties from US Atlas
+    let moCounties = null;
+    let countiesGroup = svg.append('g').attr('class', 'counties');
 
-    const path = d3.geoPath().projection(projection);
-
-    let countiesGroup, countiesData = null;
-
-    // Try to load Missouri counties GeoJSON
     try {
-        // You would need to provide a Missouri counties GeoJSON file
-        // For now, we'll create a placeholder
-        countiesGroup = svg.append('g').attr('class', 'counties');
+        // Fetch US counties TopoJSON
+        const us = await d3.json('https://cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json');
 
-        // Add a note about missing map data
-        svg.append('text')
-            .attr('x', width / 2)
-            .attr('y', height / 2 - 50)
-            .attr('text-anchor', 'middle')
-            .style('font-size', '16px')
-            .style('fill', '#666')
-            .text('Missouri Counties Map');
+        // Convert to GeoJSON and filter for Missouri (FIPS code 29)
+        const counties = topojson.feature(us, us.objects.counties);
+        moCounties = {
+            type: 'FeatureCollection',
+            features: counties.features.filter(d => d.id.toString().startsWith('29'))
+        };
 
+        console.log(`Loaded ${moCounties.features.length} Missouri counties`);
+
+        // Calculate bounds for Missouri and set up projection
+        const bounds = d3.geoBounds(moCounties);
+        const centerX = (bounds[0][0] + bounds[1][0]) / 2;
+        const centerY = (bounds[0][1] + bounds[1][1]) / 2;
+
+        // Set up projection centered on Missouri
+        const projection = d3.geoMercator()
+            .center([centerX, centerY])
+            .fitSize([width * 0.95, height * 0.95], moCounties);
+
+        const path = d3.geoPath().projection(projection);
+
+        // Draw counties
+        countiesGroup.selectAll('path')
+            .data(moCounties.features)
+            .enter()
+            .append('path')
+            .attr('d', path)
+            .attr('class', 'county')
+            .attr('fill', '#e0e0e0')
+            .attr('stroke', '#fff')
+            .attr('stroke-width', 1)
+            .style('cursor', 'pointer');
+
+    } catch (error) {
+        console.error('Error loading Missouri counties:', error);
+
+        // Show error message
         svg.append('text')
             .attr('x', width / 2)
             .attr('y', height / 2)
             .attr('text-anchor', 'middle')
             .style('font-size', '14px')
-            .style('fill', '#888')
-            .text('(GeoJSON data needed for county boundaries)');
-
-        svg.append('text')
-            .attr('x', width / 2)
-            .attr('y', height / 2 + 30)
-            .attr('text-anchor', 'middle')
-            .style('font-size', '12px')
-            .style('fill', '#888')
-            .text('Sample data will be visualized here once map data is loaded');
-
-    } catch (error) {
-        console.warn('Could not load counties map data:', error);
+            .style('fill', '#dc3545')
+            .text('Error loading map data. Please check console for details.');
     }
 
     // Color scale for sample counts
@@ -83,50 +94,59 @@ export async function createMap(selector) {
 
     return {
         update(data) {
+            if (!moCounties) {
+                console.warn('Map data not loaded yet');
+                return;
+            }
+
             const countyData = groupByCounty(data);
+
+            // Create a lookup map from county name to data
+            const dataByCounty = new Map(countyData.map(d => [d.county.toLowerCase(), d]));
 
             // Update color scale domain
             const maxCount = d3.max(countyData, d => d.count) || 0;
             colorScale.domain([0, maxCount]);
 
-            // For now, create a simple visualization showing county data as circles
-            // This will be replaced when proper GeoJSON data is available
+            // Update county colors and interactivity
+            countiesGroup.selectAll('.county')
+                .attr('fill', function(d) {
+                    // Get county name from the feature properties
+                    // US Atlas uses the "name" property for county names
+                    const countyName = d.properties?.name?.toLowerCase();
+                    const countyStats = dataByCounty.get(countyName);
 
-            // Clear previous visualizations
-            svg.selectAll('.county-circle').remove();
-            svg.selectAll('.county-label').remove();
-
-            // Create a simple grid layout for counties
-            const cols = Math.ceil(Math.sqrt(countyData.length));
-            const cellWidth = width / cols;
-            const cellHeight = height / cols;
-
-            const circles = svg.selectAll('.county-circle')
-                .data(countyData)
-                .enter()
-                .append('circle')
-                .attr('class', 'county-circle')
-                .attr('cx', (d, i) => (i % cols) * cellWidth + cellWidth / 2)
-                .attr('cy', (d, i) => Math.floor(i / cols) * cellHeight + cellHeight / 2 + 100)
-                .attr('r', d => Math.sqrt(d.count) * 2 + 5)
-                .attr('fill', d => colorScale(d.count))
-                .attr('stroke', '#333')
-                .attr('stroke-width', 1)
-                .style('cursor', 'pointer')
+                    if (countyStats && countyStats.count > 0) {
+                        return colorScale(countyStats.count);
+                    }
+                    return '#e0e0e0'; // Default gray for counties with no data
+                })
                 .on('mouseover', function(event, d) {
-                    tooltip
-                        .style('visibility', 'visible')
-                        .html(`
-                            <strong>${d.county}</strong><br/>
-                            Total Samples: ${d.count}<br/>
-                            Pending: ${d.pending}<br/>
-                            Positive: ${d.positive}<br/>
-                            Negative: ${d.negative}
-                        `);
+                    const countyName = d.properties?.name;
+                    const countyStats = dataByCounty.get(countyName?.toLowerCase());
+
+                    if (countyStats) {
+                        tooltip
+                            .style('visibility', 'visible')
+                            .html(`
+                                <strong>${countyName}</strong><br/>
+                                Total Samples: ${countyStats.count}<br/>
+                                Pending: ${countyStats.pending}<br/>
+                                Positive: ${countyStats.positive}<br/>
+                                Not Detected: ${countyStats.negative}
+                            `);
+                    } else {
+                        tooltip
+                            .style('visibility', 'visible')
+                            .html(`
+                                <strong>${countyName || 'Unknown'}</strong><br/>
+                                No CWD samples
+                            `);
+                    }
 
                     d3.select(this)
-                        .attr('stroke-width', 2)
-                        .attr('stroke', '#000');
+                        .attr('stroke', '#000')
+                        .attr('stroke-width', 2);
                 })
                 .on('mousemove', function(event) {
                     tooltip
@@ -137,28 +157,16 @@ export async function createMap(selector) {
                     tooltip.style('visibility', 'hidden');
 
                     d3.select(this)
-                        .attr('stroke-width', 1)
-                        .attr('stroke', '#333');
+                        .attr('stroke', '#fff')
+                        .attr('stroke-width', 1);
                 })
                 .on('click', function(event, d) {
-                    // Filter by county
-                    d3.select('#county-filter').node().value = d.county;
-                    d3.select('#county-filter').dispatch('change');
+                    const countyName = d.properties?.name;
+                    if (countyName) {
+                        d3.select('#county-filter').node().value = countyName;
+                        d3.select('#county-filter').dispatch('change');
+                    }
                 });
-
-            // Add county labels
-            svg.selectAll('.county-label')
-                .data(countyData)
-                .enter()
-                .append('text')
-                .attr('class', 'county-label')
-                .attr('x', (d, i) => (i % cols) * cellWidth + cellWidth / 2)
-                .attr('y', (d, i) => Math.floor(i / cols) * cellHeight + cellHeight / 2 + 120)
-                .attr('text-anchor', 'middle')
-                .style('font-size', '10px')
-                .style('fill', '#333')
-                .style('pointer-events', 'none')
-                .text(d => d.county.length > 10 ? d.county.substring(0, 8) + '...' : d.county);
 
             // Update legend
             this.updateLegend(maxCount);
