@@ -98,7 +98,7 @@ export async function createMap(selector) {
             const cellHeight = height / cols;
 
             const circles = svg.selectAll('.county-circle')
-                .data(countyData.slice(0, 20)) // Show first 20 counties for demo
+                .data(countyData)
                 .enter()
                 .append('circle')
                 .attr('class', 'county-circle')
@@ -144,7 +144,7 @@ export async function createMap(selector) {
 
             // Add county labels
             svg.selectAll('.county-label')
-                .data(countyData.slice(0, 20))
+                .data(countyData)
                 .enter()
                 .append('text')
                 .attr('class', 'county-label')
