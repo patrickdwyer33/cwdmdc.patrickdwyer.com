@@ -10,16 +10,10 @@ export function updateStats(data) {
     const publishedData = data.filter(d => d.publish === true);
     const totalSamples = publishedData.length;
 
-    // Helper function to normalize result strings for comparison
-    const normalizeResult = (result) => {
-        if (!result) return '';
-        return result.trim().toLowerCase();
-    };
-
-    const pendingTests = publishedData.filter(d => normalizeResult(d.result) === 'pending').length;
-    const positiveTests = publishedData.filter(d => normalizeResult(d.result) === 'positive').length;
-    const notDetectedTests = publishedData.filter(d => normalizeResult(d.result) === 'not detected').length;
-    const unsuitableTests = publishedData.filter(d => normalizeResult(d.result) === 'sample unsuitable').length;
+    const pendingTests = publishedData.filter(d => d.result === 'Pending').length;
+    const positiveTests = publishedData.filter(d => d.result === 'Positive').length;
+    const notDetectedTests = publishedData.filter(d => d.result === 'Not detected').length;
+    const unsuitableTests = publishedData.filter(d => d.result === 'Sample Unsuitable').length;
 
     // Update stat cards
     d3.select('#total-samples')

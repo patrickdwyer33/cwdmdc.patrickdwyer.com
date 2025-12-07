@@ -98,7 +98,7 @@ export function processData(rawData, deduplicate = true) {
                 permitYear: d.PERMITYEAR,
                 collectionType: d.Collection_Type,
                 collectionTypeName: getCollectionTypeName(d.Collection_Type),
-                result: d.RESULT || 'Unknown',
+                result: normalizeResult(d.RESULT),
                 collectionDate: parseDate(d.CollectionDate),
                 harvestDate: parseHarvestDate(d.HARVEST_DATE),
                 sampleType: d.SampleType,
@@ -177,6 +177,20 @@ function getCollectionTypeName(type) {
     }
 }
 
+function normalizeResult(result) {
+    if (!result) return 'Unknown';
+
+    const normalized = result.trim();
+
+    // Normalize specific values
+    if (normalized.toLowerCase() === 'sample unsuitable') {
+        return 'Sample Unsuitable';
+    }
+
+    // Return the result as-is for other values
+    return normalized;
+}
+
 function getDeerSexName(sex) {
     switch (sex) {
         case 'M': return 'Male';
@@ -229,7 +243,8 @@ export function groupByCounty(data) {
         count: samples.length,
         pending: samples.filter(d => d.result === 'Pending').length,
         positive: samples.filter(d => d.result === 'Positive').length,
-        negative: samples.filter(d => d.result === 'Negative').length,
+        negative: samples.filter(d => d.result === 'Not detected').length,
+        unsuitable: samples.filter(d => d.result === 'Sample Unsuitable').length,
         samples
     })).filter(d => d.county); // Remove entries without county names
 }

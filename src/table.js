@@ -424,7 +424,7 @@ export function createTable(selector) {
             'Pending': '#ffc107',
             'Positive': '#dc3545',
             'Not detected': '#28a745',
-            'Sample unsuitable': '#6c757d'
+            'Sample Unsuitable': '#6c757d'
         };
 
         const color = colors[result] || '#6c757d';

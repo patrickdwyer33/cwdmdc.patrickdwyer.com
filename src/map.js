@@ -120,12 +120,37 @@ export async function createMap(selector) {
             .text('Error loading map data. Please check console for details.');
     }
 
-    // Color scale for sample counts
-    const colorScale = d3.scaleSequential()
-        .interpolator(d3.interpolateReds)
-        .domain([0, 50]); // Will be updated based on actual data
+    // Track selected metric
+    let selectedMetric = 'total';
 
-    return {
+    // Color scales for different metrics (matching stat card colors)
+    const colorScales = {
+        total: d3.scaleSequential().interpolator(d3.interpolateBlues),
+        positive: d3.scaleSequential().interpolator(d3.interpolateReds),
+        notDetected: d3.scaleSequential().interpolator(d3.interpolateGreens),
+        pending: d3.scaleSequential().interpolator(d3.interpolateOranges),
+        unsuitable: d3.scaleSequential().interpolator(d3.interpolateGreys)
+    };
+
+    // Metric labels for display
+    const metricLabels = {
+        total: 'Total Samples',
+        positive: 'Positive',
+        notDetected: 'Not Detected',
+        pending: 'Pending',
+        unsuitable: 'Unsuitable'
+    };
+
+    // Set up metric selector event listeners
+    d3.selectAll('input[name="map-metric"]').on('change', function() {
+        selectedMetric = this.value;
+        // Re-render the map with the current data
+        if (window.dashboard && window.dashboard.filteredData) {
+            mapAPI.update(window.dashboard.filteredData);
+        }
+    });
+
+    const mapAPI = {
         update(data) {
             if (!moCounties) {
                 console.warn('Map data not loaded yet');
@@ -137,9 +162,30 @@ export async function createMap(selector) {
             // Create a lookup map from county name to data
             const dataByCounty = new Map(countyData.map(d => [d.county.toLowerCase(), d]));
 
-            // Update color scale domain
-            const maxCount = d3.max(countyData, d => d.count) || 0;
-            colorScale.domain([0, maxCount]);
+            // Get the current color scale and max value for selected metric
+            const currentColorScale = colorScales[selectedMetric];
+
+            // Determine max value based on selected metric
+            let maxValue = 0;
+            switch(selectedMetric) {
+                case 'total':
+                    maxValue = d3.max(countyData, d => d.count) || 0;
+                    break;
+                case 'positive':
+                    maxValue = d3.max(countyData, d => d.positive) || 0;
+                    break;
+                case 'notDetected':
+                    maxValue = d3.max(countyData, d => d.negative) || 0;
+                    break;
+                case 'pending':
+                    maxValue = d3.max(countyData, d => d.pending) || 0;
+                    break;
+                case 'unsuitable':
+                    maxValue = d3.max(countyData, d => d.unsuitable) || 0;
+                    break;
+            }
+
+            currentColorScale.domain([0, maxValue]);
 
             // Update county colors and interactivity
             countiesGroup.selectAll('.county')
@@ -150,7 +196,26 @@ export async function createMap(selector) {
                     const countyStats = dataByCounty.get(countyName);
 
                     if (countyStats && countyStats.count > 0) {
-                        return colorScale(countyStats.count);
+                        // Get the value for the selected metric
+                        let value = 0;
+                        switch(selectedMetric) {
+                            case 'total':
+                                value = countyStats.count;
+                                break;
+                            case 'positive':
+                                value = countyStats.positive;
+                                break;
+                            case 'notDetected':
+                                value = countyStats.negative;
+                                break;
+                            case 'pending':
+                                value = countyStats.pending;
+                                break;
+                            case 'unsuitable':
+                                value = countyStats.unsuitable;
+                                break;
+                        }
+                        return currentColorScale(value);
                     }
                     return '#e0e0e0'; // Default gray for counties with no data
                 })
@@ -213,11 +278,12 @@ export async function createMap(selector) {
                 });
 
             // Update legend
-            this.updateLegend(maxCount);
+            this.updateLegend(maxValue, currentColorScale, selectedMetric);
         },
 
-        updateLegend(maxCount) {
+        updateLegend(maxValue, colorScale, metric) {
             svg.selectAll('.legend').remove();
+            svg.selectAll('defs').remove();
 
             const legendWidth = 200;
             const legendHeight = 20;
@@ -239,7 +305,7 @@ export async function createMap(selector) {
 
             gradient.append('stop')
                 .attr('offset', '100%')
-                .attr('stop-color', colorScale(maxCount));
+                .attr('stop-color', colorScale(maxValue));
 
             // Legend rectangle
             legend.append('rect')
@@ -260,7 +326,7 @@ export async function createMap(selector) {
                 .attr('y', legendHeight + 15)
                 .attr('text-anchor', 'end')
                 .style('font-size', '12px')
-                .text(maxCount);
+                .text(maxValue);
 
             legend.append('text')
                 .attr('x', legendWidth / 2)
@@ -268,7 +334,9 @@ export async function createMap(selector) {
                 .attr('text-anchor', 'middle')
                 .style('font-size', '12px')
                 .style('font-weight', 'bold')
-                .text('Sample Count');
+                .text(metricLabels[metric]);
         }
     };
+
+    return mapAPI;
 }
