@@ -15,7 +15,6 @@ class CWDDashboard {
         this.table = null;
         this.filters = {
             year: '',
-            county: '',
             deduplicate: true
         };
 
@@ -65,11 +64,8 @@ class CWDDashboard {
     }
 
     populateFilters() {
-        // Use all data for populating filter options
-        const dataForFilters = this.allData;
-
         // Populate year filter
-        const years = [...new Set(dataForFilters.map(d => d.permitYear))].sort();
+        const years = [...new Set(this.allData.map(d => d.permitYear))].sort();
         const yearSelect = d3.select('#year-filter');
         yearSelect.selectAll('option:not(:first-child)').remove();
         yearSelect.selectAll('option.year-option')
@@ -77,20 +73,6 @@ class CWDDashboard {
             .enter()
             .append('option')
             .classed('year-option', true)
-            .attr('value', d => d)
-            .text(d => d);
-
-        // Populate county filter
-        const counties = [...new Set(dataForFilters.map(d => d.countyName))]
-            .filter(d => d)
-            .sort();
-        const countySelect = d3.select('#county-filter');
-        countySelect.selectAll('option:not(:first-child)').remove();
-        countySelect.selectAll('option.county-option')
-            .data(counties)
-            .enter()
-            .append('option')
-            .classed('county-option', true)
             .attr('value', d => d)
             .text(d => d);
     }
@@ -102,10 +84,6 @@ class CWDDashboard {
             this.updateAll();
         });
 
-        d3.select('#county-filter').on('change', () => {
-            this.filters.county = d3.select('#county-filter').node().value;
-            this.updateAll();
-        });
 
         d3.select('#dedupe-filter').on('change', () => {
             const value = d3.select('#dedupe-filter').node().value;
@@ -132,12 +110,9 @@ class CWDDashboard {
         // Start with either deduplicated or all data based on filter setting
         const sourceData = this.filters.deduplicate ? this.deduplicatedData : this.allData;
 
-        // Apply filters
+        // Apply year filter only
         this.filteredData = sourceData.filter(d => {
             if (this.filters.year && d.permitYear !== this.filters.year) {
-                return false;
-            }
-            if (this.filters.county && d.countyName !== this.filters.county) {
                 return false;
             }
             return true;
@@ -147,18 +122,27 @@ class CWDDashboard {
     updateAll() {
         this.applyFilters();
 
+        // Create stats data filtered only by year (not county)
+        const sourceData = this.filters.deduplicate ? this.deduplicatedData : this.allData;
+        const statsData = sourceData.filter(d => {
+            if (this.filters.year && d.permitYear !== this.filters.year) {
+                return false;
+            }
+            return true;
+        });
+
         // Update components
         this.map.update(this.filteredData);
         this.table.update(this.filteredData);
-        updateStats(this.filteredData);
+        updateStats(statsData);
 
         // Update table count
         d3.select('#table-count').text(`${this.filteredData.length} samples`);
     }
 
     initializeMetricSelection() {
-        // Set initial selected state for Total Samples
-        d3.select('.stat-card[data-metric="total"]').classed('selected', true);
+        // Set initial selected state for Positive
+        d3.select('.stat-card[data-metric="positive"]').classed('selected', true);
     }
 
     showLoading(show) {

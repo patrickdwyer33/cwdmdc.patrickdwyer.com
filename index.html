@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CWD MDC Dashboard - Missouri Chronic Wasting Disease Surveillance</title>
     <link rel="stylesheet" href="/src/style.css">
+    <script defer type="module" src="/src/main.js"></script>
 </head>
 <body>
     <div id="app">
@@ -16,58 +17,43 @@
         </header>
 
         <main class="dashboard-main">
-            <div class="dashboard-controls">
-                <div class="filters">
-                    <div class="filter-group">
-                        <label for="year-filter">Year:</label>
+            <div class="dashboard-content">
+                <div class="visualization-panel">
+                    <div class="map-header">
+                        <h2>Missouri Counties Map</h2>
                         <select id="year-filter">
                             <option value="">All Years</option>
                         </select>
                     </div>
-                    <div class="filter-group">
-                        <label for="county-filter">County:</label>
-                        <select id="county-filter">
-                            <option value="">All Counties</option>
-                        </select>
+                    <div class="stats-summary">
+                        <button class="stat-card stat-total" data-metric="total">
+                            <span class="stat-label">Total Samples</span>
+                            <span class="stat-value" id="total-samples">-</span>
+                        </button>
+                        <button class="stat-card stat-positive" data-metric="positive">
+                            <span class="stat-label">Positive</span>
+                            <span class="stat-value" id="positive-tests">-</span>
+                        </button>
+                        <button class="stat-card stat-negative" data-metric="notDetected">
+                            <span class="stat-label">Negative</span>
+                            <span class="stat-value" id="not-detected-tests">-</span>
+                        </button>
+                        <button class="stat-card stat-pending" data-metric="pending">
+                            <span class="stat-label">Pending</span>
+                            <span class="stat-value" id="pending-tests">-</span>
+                        </button>
+                        <button class="stat-card stat-unsuitable" data-metric="unsuitable">
+                            <span class="stat-label">Unsuitable Sample</span>
+                            <span class="stat-value" id="unsuitable-tests">-</span>
+                        </button>
                     </div>
-                    <div class="filter-group">
-                        <label for="dedupe-filter">Data Display:</label>
-                        <select id="dedupe-filter">
-                            <option value="deduplicated">Deduplicated (Latest Only)</option>
-                            <option value="all">All Records (Include Duplicates)</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="stats-summary">
-                    <button class="stat-card stat-total" data-metric="total">
-                        <span class="stat-label">Total Samples</span>
-                        <span class="stat-value" id="total-samples">-</span>
-                    </button>
-                    <button class="stat-card stat-positive" data-metric="positive">
-                        <span class="stat-label">Positive</span>
-                        <span class="stat-value" id="positive-tests">-</span>
-                    </button>
-                    <button class="stat-card stat-negative" data-metric="notDetected">
-                        <span class="stat-label">Not Detected</span>
-                        <span class="stat-value" id="not-detected-tests">-</span>
-                    </button>
-                    <button class="stat-card stat-pending" data-metric="pending">
-                        <span class="stat-label">Pending</span>
-                        <span class="stat-value" id="pending-tests">-</span>
-                    </button>
-                    <button class="stat-card stat-unsuitable" data-metric="unsuitable">
-                        <span class="stat-label">Unsuitable Sample</span>
-                        <span class="stat-value" id="unsuitable-tests">-</span>
-                    </button>
-                </div>
-            </div>
-
-            <div class="dashboard-content">
-                <div class="visualization-panel">
-                    <div class="map-container">
-                        <h2>Missouri Counties Map</h2>
-                        <div id="map"></div>
-                    </div>
+                    <div id="map-legend" class="map-legend"></div>
+                    <div id="map"></div>
+                    <!-- Hidden filter - keep for functionality -->
+                    <select id="dedupe-filter" style="display: none;">
+                        <option value="deduplicated">Deduplicated (Latest Only)</option>
+                        <option value="all">All Records (Include Duplicates)</option>
+                    </select>
                 </div>
 
                 <div class="data-panel">
@@ -82,12 +68,12 @@
                         <div id="table-filters" class="table-filters" style="display: none;">
                             <div class="filters-header">
                                 <h3>Filter Samples</h3>
-                                <button id="clear-filters" class="clear-filters-btn">Clear All Filters</button>
+                                <button id="clear-filters" class="clear-filters-btn">Clear Filters</button>
                             </div>
                             <div class="filters-grid">
                                 <!-- Search filters -->
                                 <div class="filter-section">
-                                    <label>Specimen #</label>
+                                    <label>Specimen</label>
                                     <input type="text" id="filter-specimen" placeholder="Search specimen number...">
                                 </div>
                                 <div class="filter-section">
@@ -95,7 +81,7 @@
                                     <input type="text" id="filter-county-table" placeholder="Search county...">
                                 </div>
                                 <div class="filter-section">
-                                    <label>Telecheck ID</label>
+                                    <label>Telecheck</label>
                                     <input type="text" id="filter-telecheck" placeholder="Search telecheck ID...">
                                 </div>
 
@@ -113,21 +99,13 @@
                                     <div class="checkbox-group" id="filter-age-group"></div>
                                 </div>
                                 <div class="filter-section">
-                                    <label>Sample Type</label>
+                                    <label>Sample</label>
                                     <div class="checkbox-group" id="filter-sample-type-group"></div>
                                 </div>
 
                                 <!-- Date range filters -->
                                 <div class="filter-section">
-                                    <label>Collection Date</label>
-                                    <div class="date-range">
-                                        <input type="date" id="filter-collection-start" placeholder="From">
-                                        <span>to</span>
-                                        <input type="date" id="filter-collection-end" placeholder="To">
-                                    </div>
-                                </div>
-                                <div class="filter-section">
-                                    <label>Harvest Date</label>
+                                    <label>Harvested</label>
                                     <div class="date-range">
                                         <input type="date" id="filter-harvest-start" placeholder="From">
                                         <span>to</span>
@@ -143,7 +121,7 @@
         </main>
 
         <footer class="dashboard-footer">
-            <p>Data source: Missouri Department of Conservation CWD Fall Reporting Dashboard</p>
+            <p>Data source: <a href="https://mdc.mo.gov/hunting-trapping/species/deer/chronic-wasting-disease/cwd-sampling-results">Missouri Department of Conservation CWD Reporting Dashboard</a></p>
         </footer>
     </div>
 
@@ -153,7 +131,5 @@
             <p>Loading CWD surveillance data...</p>
         </div>
     </div>
-
-    <script type="module" src="/src/main.js"></script>
 </body>
 </html>

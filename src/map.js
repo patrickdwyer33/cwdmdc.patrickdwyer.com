@@ -33,25 +33,15 @@ export async function createMap(selector) {
         .style('pointer-events', 'none')
         .style('z-index', '1000');
 
-    // Track selected county for toggling
-    let selectedCounty = null;
-
-    // Add background rectangle to capture clicks outside counties
-    svg.append('rect')
-        .attr('width', width)
-        .attr('height', height)
-        .attr('fill', 'transparent')
-        .style('cursor', 'pointer')
-        .on('click', function() {
-            // Clear county filter when clicking background
-            selectedCounty = null;
-            d3.select('#county-filter').node().value = '';
-            d3.select('#county-filter').dispatch('change');
-        });
+    // Track sticky tooltips and drag state
+    const stickyTooltips = new Map(); // countyName -> {tooltip, line}
+    let isDragging = false;
 
     // Load Missouri counties from US Atlas
     let moCounties = null;
+    let path = null;
     let countiesGroup = svg.append('g').attr('class', 'counties');
+    let linesGroup = svg.append('g').attr('class', 'connection-lines');
 
     try {
         // Fetch US counties TopoJSON
@@ -76,7 +66,7 @@ export async function createMap(selector) {
             .center([centerX, centerY])
             .fitSize([width * 0.95, height * 0.95], moCounties);
 
-        const path = d3.geoPath().projection(projection);
+        path = d3.geoPath().projection(projection);
 
         // Draw counties
         countiesGroup.selectAll('path')
@@ -121,7 +111,7 @@ export async function createMap(selector) {
     }
 
     // Track selected metric
-    let selectedMetric = 'total';
+    let selectedMetric = 'positive';
 
     // Color scales for different metrics (matching stat card colors)
     const colorScales = {
@@ -136,9 +126,15 @@ export async function createMap(selector) {
     const metricLabels = {
         total: 'Total Samples',
         positive: 'Positive',
-        notDetected: 'Not Detected',
+        notDetected: 'Negative',
         pending: 'Pending',
         unsuitable: 'Unsuitable'
+    };
+
+    // Helper function to normalize county names for matching
+    const normalizeCountyName = (name) => {
+        if (!name) return '';
+        return name.toLowerCase().replace(/\./g, '');
     };
 
     const mapAPI = {
@@ -150,8 +146,8 @@ export async function createMap(selector) {
 
             const countyData = groupByCounty(data);
 
-            // Create a lookup map from county name to data
-            const dataByCounty = new Map(countyData.map(d => [d.county.toLowerCase(), d]));
+            // Create a lookup map from county name to data (normalize names by removing periods)
+            const dataByCounty = new Map(countyData.map(d => [normalizeCountyName(d.county), d]));
 
             // Get the current color scale and max value for selected metric
             const currentColorScale = colorScales[selectedMetric];
@@ -183,8 +179,8 @@ export async function createMap(selector) {
                 .attr('fill', function(d) {
                     // Get county name from the feature properties
                     // US Atlas uses the "name" property for county names
-                    const countyName = d.properties?.name?.toLowerCase();
-                    const countyStats = dataByCounty.get(countyName);
+                    const countyName = d.properties?.name;
+                    const countyStats = dataByCounty.get(normalizeCountyName(countyName));
 
                     if (countyStats && countyStats.count > 0) {
                         // Get the value for the selected metric
@@ -211,8 +207,10 @@ export async function createMap(selector) {
                     return '#e0e0e0'; // Default gray for counties with no data
                 })
                 .on('mouseover', function(event, d) {
+                    if (isDragging) return; // Don't show hover tooltip while dragging
+
                     const countyName = d.properties?.name;
-                    const countyStats = dataByCounty.get(countyName?.toLowerCase());
+                    const countyStats = dataByCounty.get(normalizeCountyName(countyName));
 
                     if (countyStats) {
                         tooltip
@@ -222,7 +220,8 @@ export async function createMap(selector) {
                                 Total Samples: ${countyStats.count}<br/>
                                 Pending: ${countyStats.pending}<br/>
                                 Positive: ${countyStats.positive}<br/>
-                                Not Detected: ${countyStats.negative}
+                                Negative: ${countyStats.negative}<br/>
+                                Unsuitable: ${countyStats.unsuitable}
                             `);
                     } else {
                         tooltip
@@ -252,19 +251,128 @@ export async function createMap(selector) {
                         .attr('stroke-width', 1);
                 })
                 .on('click', function(event, d) {
-                    event.stopPropagation(); // Prevent background click from firing
+                    event.stopPropagation();
 
                     const countyName = d.properties?.name;
-                    if (countyName) {
-                        // Toggle: if clicking the same county, deselect it
-                        if (selectedCounty === countyName) {
-                            selectedCounty = null;
-                            d3.select('#county-filter').node().value = '';
-                        } else {
-                            selectedCounty = countyName;
-                            d3.select('#county-filter').node().value = countyName;
-                        }
-                        d3.select('#county-filter').dispatch('change');
+                    if (!countyName) return;
+
+                    // Toggle sticky tooltip
+                    if (stickyTooltips.has(countyName)) {
+                        // Remove existing sticky tooltip and line
+                        const {tooltip: existingTooltip, line: existingLine} = stickyTooltips.get(countyName);
+                        existingTooltip.remove();
+                        existingLine.remove();
+                        stickyTooltips.delete(countyName);
+                    } else {
+                        // Create new sticky tooltip
+                        const countyStats = dataByCounty.get(normalizeCountyName(countyName));
+                        if (!countyStats) return;
+
+                        // Calculate county centroid in SVG coordinates
+                        const centroid = path.centroid(d);
+
+                        const stickyTooltip = d3.select('body')
+                            .append('div')
+                            .attr('class', 'sticky-tooltip')
+                            .style('position', 'absolute')
+                            .style('left', (event.pageX + 10) + 'px')
+                            .style('top', (event.pageY - 10) + 'px')
+                            .style('background', 'rgba(0, 0, 0, 0.9)')
+                            .style('color', 'white')
+                            .style('padding', '12px')
+                            .style('border-radius', '4px')
+                            .style('font-size', '12px')
+                            .style('pointer-events', 'all')
+                            .style('cursor', 'move')
+                            .style('z-index', '1001')
+                            .style('box-shadow', '0 4px 6px rgba(0,0,0,0.3)')
+                            .html(`
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                                    <strong style="margin-right: 12px;">${countyName}</strong>
+                                    <button class="close-tooltip" style="background: none; border: none; color: white; cursor: pointer; font-size: 16px; padding: 0; line-height: 1;">&times;</button>
+                                </div>
+                                Total Samples: ${countyStats.count}<br/>
+                                Pending: ${countyStats.pending}<br/>
+                                Positive: ${countyStats.positive}<br/>
+                                Negative: ${countyStats.negative}<br/>
+                                Unsuitable: ${countyStats.unsuitable}
+                            `);
+
+                        // Create connection line
+                        const connectionLine = linesGroup.append('line')
+                            .attr('x1', centroid[0])
+                            .attr('y1', centroid[1])
+                            .attr('stroke', 'rgba(0, 0, 0, 0.5)')
+                            .attr('stroke-width', 2)
+                            .attr('stroke-dasharray', '4,4')
+                            .style('pointer-events', 'none');
+
+                        // Helper function to update line position
+                        const updateLine = () => {
+                            const tooltipNode = stickyTooltip.node();
+                            const tooltipRect = tooltipNode.getBoundingClientRect();
+                            const svgRect = svg.node().getBoundingClientRect();
+
+                            // Calculate tooltip center in page coordinates
+                            const tooltipCenterX = tooltipRect.left + tooltipRect.width / 2;
+                            const tooltipCenterY = tooltipRect.top + tooltipRect.height / 2;
+
+                            // Convert to SVG coordinates
+                            const svgX = ((tooltipCenterX - svgRect.left) / svgRect.width) * width;
+                            const svgY = ((tooltipCenterY - svgRect.top) / svgRect.height) * height;
+
+                            connectionLine
+                                .attr('x2', svgX)
+                                .attr('y2', svgY);
+                        };
+
+                        // Initial line position
+                        updateLine();
+
+                        // Add close button handler
+                        stickyTooltip.select('.close-tooltip').on('click', function(e) {
+                            e.stopPropagation();
+                            stickyTooltip.remove();
+                            connectionLine.remove();
+                            stickyTooltips.delete(countyName);
+                        });
+
+                        // Make tooltip draggable
+                        let offsetX, offsetY;
+                        const drag = d3.drag()
+                            .on('start', function(event) {
+                                isDragging = true;
+                                tooltip.style('visibility', 'hidden');
+
+                                // Calculate offset from where user clicked to tooltip position
+                                const element = d3.select(this);
+                                const currentLeft = parseInt(element.style('left')) || 0;
+                                const currentTop = parseInt(element.style('top')) || 0;
+                                offsetX = event.x - currentLeft;
+                                offsetY = event.y - currentTop;
+
+                                // Keep cursor as move during drag
+                                element.style('cursor', 'move');
+                            })
+                            .on('drag', function(event) {
+                                d3.select(this)
+                                    .style('left', (event.x - offsetX) + 'px')
+                                    .style('top', (event.y - offsetY) + 'px')
+                                    .style('cursor', 'move');
+
+                                // Update connection line position
+                                updateLine();
+                            })
+                            .on('end', function() {
+                                isDragging = false;
+                                d3.select(this).style('cursor', 'move');
+                            });
+
+                        stickyTooltip.call(drag);
+                        stickyTooltips.set(countyName, {
+                            tooltip: stickyTooltip,
+                            line: connectionLine
+                        });
                     }
                 });
 
@@ -273,59 +381,35 @@ export async function createMap(selector) {
         },
 
         updateLegend(maxValue, colorScale, metric) {
-            svg.selectAll('.legend').remove();
-            svg.selectAll('defs').remove();
+            const legendContainer = d3.select('#map-legend');
+            legendContainer.html(''); // Clear existing content
 
-            const legendWidth = 200;
-            const legendHeight = 20;
+            // Create gradient container
+            const gradientContainer = legendContainer.append('div')
+                .attr('class', 'map-legend-gradient');
 
-            const legend = svg.append('g')
-                .attr('class', 'legend')
-                .attr('transform', `translate(${width - legendWidth - 20}, 20)`);
-
-            // Create gradient
-            const defs = svg.append('defs');
-            const gradient = defs.append('linearGradient')
-                .attr('id', 'legend-gradient')
-                .attr('x1', '0%')
-                .attr('x2', '100%');
-
-            gradient.append('stop')
-                .attr('offset', '0%')
-                .attr('stop-color', colorScale(0));
-
-            gradient.append('stop')
-                .attr('offset', '100%')
-                .attr('stop-color', colorScale(maxValue));
-
-            // Legend rectangle
-            legend.append('rect')
-                .attr('width', legendWidth)
-                .attr('height', legendHeight)
-                .style('fill', 'url(#legend-gradient)')
-                .style('stroke', '#333');
-
-            // Legend labels
-            legend.append('text')
-                .attr('x', 0)
-                .attr('y', legendHeight + 15)
-                .style('font-size', '12px')
+            // Min label
+            gradientContainer.append('span')
+                .attr('class', 'map-legend-label')
                 .text('0');
 
-            legend.append('text')
-                .attr('x', legendWidth)
-                .attr('y', legendHeight + 15)
-                .attr('text-anchor', 'end')
-                .style('font-size', '12px')
+            // Gradient bar
+            const gradientBar = gradientContainer.append('div')
+                .attr('class', 'map-legend-bar')
+                .style('background', `linear-gradient(to right, ${colorScale(0)}, ${colorScale(maxValue)})`);
+
+            // Max label
+            gradientContainer.append('span')
+                .attr('class', 'map-legend-label')
                 .text(maxValue);
 
-            legend.append('text')
-                .attr('x', legendWidth / 2)
-                .attr('y', -5)
-                .attr('text-anchor', 'middle')
-                .style('font-size', '12px')
-                .style('font-weight', 'bold')
-                .text(metricLabels[metric]);
+            // Add note about grey counties
+            legendContainer.append('div')
+                .style('font-size', '0.7rem')
+                .style('color', '#666')
+                .style('margin-top', '0.5rem')
+                .style('font-style', 'italic')
+                .text('Grey counties contain no CWD data');
         },
 
         setMetric(metric) {

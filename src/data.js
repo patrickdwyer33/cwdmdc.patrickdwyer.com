@@ -189,6 +189,10 @@ function normalizeResult(result) {
         return 'Sample Unsuitable';
     }
 
+    if (normalized.toLowerCase() === 'not detected') {
+        return 'Negative';
+    }
+
     // Return the result as-is for other values
     return normalized;
 }
@@ -245,7 +249,7 @@ export function groupByCounty(data) {
         count: samples.length,
         pending: samples.filter(d => d.result === 'Pending').length,
         positive: samples.filter(d => d.result === 'Positive').length,
-        negative: samples.filter(d => d.result === 'Not detected').length,
+        negative: samples.filter(d => d.result === 'Negative').length,
         unsuitable: samples.filter(d => d.result === 'Sample Unsuitable').length,
         samples
     })).filter(d => d.county); // Remove entries without county names
