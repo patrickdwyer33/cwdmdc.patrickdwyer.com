@@ -279,7 +279,7 @@ function normalizeResult(result) {
 
     // Normalize specific values
     if (normalized.toLowerCase() === 'sample unsuitable') {
-        return 'Sample Unsuitable';
+        return 'Unfit';
     }
 
     if (normalized.toLowerCase() === 'not detected') {
@@ -343,7 +343,7 @@ export function groupByCounty(data) {
         pending: samples.filter(d => d.result === 'Pending').length,
         positive: samples.filter(d => d.result === 'Positive').length,
         negative: samples.filter(d => d.result === 'Negative').length,
-        unsuitable: samples.filter(d => d.result === 'Sample Unsuitable').length,
+        unsuitable: samples.filter(d => d.result === 'Unfit').length,
         samples
     })).filter(d => d.county); // Remove entries without county names
 }

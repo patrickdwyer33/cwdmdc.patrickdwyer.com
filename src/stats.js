@@ -12,7 +12,7 @@ export function updateStats(data) {
     const pendingTests = publishedData.filter(d => d.result === 'Pending').length;
     const positiveTests = publishedData.filter(d => d.result === 'Positive').length;
     const negativeTests = publishedData.filter(d => d.result === 'Negative').length;
-    const unsuitableTests = publishedData.filter(d => d.result === 'Sample Unsuitable').length;
+    const unsuitableTests = publishedData.filter(d => d.result === 'Unfit').length;
 
     // Update stat cards with animation
     const stats = [
