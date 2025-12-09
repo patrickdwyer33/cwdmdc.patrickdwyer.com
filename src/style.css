@@ -204,6 +204,11 @@ body {
     border-right: 2px solid #ddd;
 }
 
+.map-legend-text {
+    margin: 0 auto;
+    width: fit-content
+}
+
 .map-legend-gradient {
     display: flex;
     align-items: center;
