@@ -162,6 +162,7 @@ main h2 {
 		padding: 0 1em;
 		margin-left: 2em;
 		border-radius: 4px;
+		height: 26px;
 	}
 }
 
@@ -172,7 +173,7 @@ main h2 {
 
 #table-container {
 	margin-top: 1em;
-	border-top: 12px solid #666;
+	border-top: 8px solid #666;
 }
 
 /* Table */
