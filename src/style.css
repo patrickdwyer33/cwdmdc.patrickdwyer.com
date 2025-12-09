@@ -461,7 +461,7 @@ button {
 	}
 
 	#map-header {
-		justify-content: left;
+		margin: 0;
 	}
 
 	#map-legend {
