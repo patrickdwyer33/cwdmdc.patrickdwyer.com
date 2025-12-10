@@ -3,32 +3,15 @@ import * as d3 from 'd3';
 const API_BASE_URL = 'https://gisblue.mdc.mo.gov/arcgis/rest/services/Terrestrial/CWD_Fall_Reporting_Dashboard/MapServer/26/query';
 
 export async function loadData(progressCallback = null) {
-    try {
-        // Try to fetch all records from API with pagination
-        const allFeatures = await fetchAllRecords(progressCallback);
+    const allFeatures = await fetchAllRecords(progressCallback);
 
-        if (allFeatures && allFeatures.length > 0) {
-            console.log(`✓ Loaded ${allFeatures.length} total records from API`);
-            return allFeatures;
-        } else {
-            throw new Error('No features found in API response');
-        }
-    } catch (error) {
-        console.warn('Failed to load from API, falling back to local data:', error);
-
-        // Fallback to local data file
-        try {
-            const localData = await d3.json('/output-data.json');
-            if (localData.features && localData.features.length > 0) {
-                return localData.features.map(feature => feature.attributes);
-            } else {
-                throw new Error('No features found in local data');
-            }
-        } catch (localError) {
-            console.error('Failed to load local data:', localError);
-            throw new Error('Failed to load data from both API and local file');
-        }
+    if (allFeatures && allFeatures.length > 0) {
+        console.log(`✓ Loaded ${allFeatures.length} total records from API`);
+        return allFeatures;
+    } else {
+        throw new Error('No features found in API response');
     }
+    
 }
 
 class BatchFetchManager {
@@ -265,6 +248,7 @@ function deduplicateBySpecimen(data) {
 }
 
 function getCollectionTypeName(type) {
+    // This is a guess made by an LLM, not based on any official documentation.
     switch (type) {
         case '1': return 'Hunter Harvest';
         case '2': return 'Surveillance';

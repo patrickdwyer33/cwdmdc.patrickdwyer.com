@@ -31,7 +31,7 @@ export function createTable(selector) {
 	const tbody = table.append("tbody");
 
 	// Create table footer note (outside scrollable area)
-	const footerNote = container
+	container
 		.append("div")
 		.attr("class", "table-footer-note")
 		.style("font-size", "0.75rem")
