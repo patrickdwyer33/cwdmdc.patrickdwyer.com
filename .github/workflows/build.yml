@@ -1,0 +1,28 @@
+name: build
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  id-token: write   # mint the OIDC token
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::048751351548:role/github-ecr-push
+          aws-region: us-east-2
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: login-ecr
+      - name: Build and push
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          set -euo pipefail
+          SHA=$(git rev-parse --short HEAD)
+          IMAGE="$REGISTRY/cwdmdc:$SHA"
+          docker build --platform linux/amd64 -t "$IMAGE" .
+          docker push "$IMAGE"
