@@ -40,7 +40,7 @@ This webapp uses HTML, CSS, JS, and D3.js.
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd cwd-mdc-dashboard
+cd cwdmdc.patrickdwyer.com
 ```
 
 2. Install dependencies:
@@ -60,6 +60,10 @@ npm run dev
 - `npm run dev` - Start development server with hot reload
 - `npm run build` - Build for production
 - `npm run preview` - Preview production build locally
+
+## Deployment
+
+On push to `main`, `.github/workflows/build.yml` builds a container image (Vite build → nginx) and pushes it to ECR as `cwdmdc:<git-sha>`, keyless via GitHub OIDC. Promoting an image to the running dev site (`dev.cwdmdc.patrickdwyer.com`) happens from the `platform-gitops` repo (`./deploy cwdmdc`), not here.
 
 ## API Reference
 
